@@ -1,10 +1,19 @@
-import { UserModel } from "../models/usermodels.js";
+import { UserModel, validateUserSchema } from "../models/usermodels.js";
 import { generateToken } from "../utils/generateToken.js";
+
 
 export const registerUser = async (req, res) => {
   try {
     const reqBody = req.body;
 
+    const validatedUser = validateUserSchema.validate(reqBody)
+
+    if (validatedUser.error) {
+      res.json({
+        success: false,
+        message: validatedUser.error.message,
+      })
+    }
     const foundUser = await UserModel.find({ email: reqBody.email });
 
     if (foundUser.length > 0) {
@@ -14,14 +23,14 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    const newUserInfo = {
-      email: reqBody.email,
-      phoneNumber: reqBody.phoneNumber,
-      password: reqBody.password,
-      address: reqBody.address,
-      name: reqBody.name,
-    }
-    const newUser = await UserModel.create(newUserInfo);
+    // const newUserInfo = {
+    //   email: reqBody.email,
+    //   phoneNumber: reqBody.phoneNumber,
+    //   password: reqBody.password,
+    //   address: reqBody.address,
+    //   name: reqBody.name,
+    // }
+    const newUser = await UserModel.create(validatedUser.value);
 
     return res.json({
       success: true,
@@ -93,44 +102,38 @@ export const loginUser = async (req, res) => {
   }
 };
 
-export const getUserController = async (req, res) => {
-  try {
-    const User = await UserModel.find();
-    res.json({
-      success: true,
-      data: User
-    });
-  } catch (error) {
-    console.log(error);
-
-    res.json({
-      success: false,
-      message: error.message
-    });
-  }
-};
 
 export const updateUser = async (req, res) => {
   try {
-    const { id: userId } = req.params;
+    const { userId } = req.params;
 
     const reqBody = req.body;
 
     const foundUser = await UserModel.findById(userId);
-    console.log(foundUser);
-    if (foundUser) {
-      const updatedUser = await UserModel.findByIdAndUpdate(userId, reqBody, {
-        new: true
-      });
 
+    if (!foundUser) {
       return res.json({
-        success: true,
-        data: updatedUser
+        success: false,
+        message: `User with ${userId} not found!`
       });
     }
+
+    if (foundUser._id.toString() !== req.user._id.toString() && !["Admin"].includes(req.user.role)) {
+      return res.json({
+        success: false,
+        message: "You cannot update this user"
+      }
+  )
+}
+
+    const updatedUser = await UserModel.findByIdAndUpdate(userId, reqBody, {
+      new: true
+    });
+
     res.json({
       success: false,
-      message: `User with ${userId} not found!`
+      data: updatedUser,
+      message: "User Updated Successfully"
     });
   } catch (error) {
     console.log(error);
@@ -141,3 +144,98 @@ export const updateUser = async (req, res) => {
     });
   }
 };
+
+export const deleteUser = async (req, res) => {
+  
+  
+  try {
+    
+    const { userId } = req.params
+  
+    const foundUser = await UserModel.findById(userId);
+  
+      if (!foundUser) {
+        return res.json({
+          success: false,
+          message: `User with ${userId} not found!`
+        });
+    }
+    
+    const deletedUser = await UserModel.findByIdAndDelete(userId)
+  
+    res.json(
+      {
+        success: true,
+        data: deletedUser,
+        message: `User with ${userId} deleted successfully!!`
+      }
+    )
+  } catch (error) {
+    console.log(error);
+
+    res.json({
+      success: false,
+      message: error.message
+    });
+  }
+  
+}
+
+
+export const updatePassword = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const { newPassword, oldPassword } = req.body;
+  
+    const foundUser = await UserModel.findById(userId);
+  
+      if (!foundUser) {
+        return res.json({
+          success: false,
+          message: `User with ${userId} not found!`
+        });
+    }
+const passwordMatched = await foundUser.isPasswordValid(oldPassword)
+    if (!passwordMatched) {
+      return res.json({
+        success: false,
+        message: "Old Password doesnot matched"
+  })
+    }
+    if (foundUser._id.toString() !== req.user._id.toString() && !["Admin"].includes(req.user.role)) {
+      return res.json({
+        success: false,
+        message: "You cannot update the password"
+      });
+    }
+
+    
+    foundUser.password = newPassword;
+
+    foundUser.save();
+
+    const userData = {
+      name: foundUser.name,
+      address: foundUser.address,
+      phoneNumber: foundUser.phoneNumber,
+      role: foundUser.role,
+      email: foundUser.email,
+      _id: foundUser._id
+    }
+    
+    res.json({
+      success: true,
+      message: "Password Updated Successfully",
+      data: userData
+    })
+
+  } catch (error) {
+    console.log(error);
+
+    res.json({
+      success: false,
+      message: error.message
+    });
+  }
+}
