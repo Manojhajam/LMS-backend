@@ -52,4 +52,4 @@ export const validatebookSchema = Joi.object({
   availability: Joi.boolean().required()
 });
 
-export const BookModel = mongoose.model("books", );
+export const BookModel = mongoose.model("books", bookSchema);
