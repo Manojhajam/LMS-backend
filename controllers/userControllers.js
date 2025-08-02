@@ -1,5 +1,6 @@
 import { UserModel, validateUserSchema } from "../models/usermodels.js";
 import { generateToken } from "../utils/generateToken.js";
+import { sendAuthCookies } from "../utils/sendAuthCookies.js";
 
 
 export const registerUser = async (req, res) => {
@@ -81,11 +82,16 @@ export const loginUser = async (req, res) => {
       }
 
       const userData = {
+        _id: foundUser._id,
         name: foundUser.name,
         email: foundUser.email,
         address: foundUser.address,
-        phoneNumber: foundUser.phoneNumber
+        phoneNumber: foundUser.phoneNumber,
+        token: token,
+        role: foundUser.role
       };
+
+      sendAuthCookies(token, res);
 
       return res.status(200).json({
         success: true,
@@ -102,8 +108,8 @@ export const loginUser = async (req, res) => {
   }
   
   catch (error) {
-    console.status(500).log(error);
-    res.json({
+    console.log(error);
+    res.status(500).json({
       success: false,
       message: error.message
     });
@@ -139,7 +145,7 @@ export const updateUser = async (req, res) => {
     });
 
     res.status(200).json({
-      success: false,
+      success: true,
       data: updatedUser,
       message: "User Updated Successfully"
     });
@@ -194,7 +200,14 @@ export const updatePassword = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const { newPassword, oldPassword } = req.body;
+    const { newPassword, oldPassword } = req?.body;
+
+    if (!newPassword || !oldPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide all the fields"
+      })
+    }
   
     const foundUser = await UserModel.findById(userId);
   
@@ -268,5 +281,52 @@ export const getProfile = async (req, res) => {
         message: error
       }
     )
+  }
+}
+
+
+export const updateRole = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const existingUser = await UserModel.findById(userId);
+    if (!existingUser)
+    {
+      return res.status(404).json({
+        success: false,
+        message: 'Can`t find user with requested id!'
+      })
+
+    }
+    if (existingUser.role === 'Admin') {
+      return res.status(400).json({
+        success: false,
+        message: "Can't update role of admin"
+      })
+    }
+
+     if (existingUser.role === 'Member') {
+      existingUser.role = 'Staff'
+     } else if (existingUser.role === 'Staff') {
+       existingUser.role = 'Member'
+    }
+    await existingUser.save();
+
+    //task remove password user details from here
+    const userWithoutPassword = existingUser.toObject();
+    delete userWithoutPassword.password;
+
+    return res.status(201).json({
+      success: true,
+      data: userWithoutPassword,
+    })
+
+  } catch (error) {
+    console.log(error);
+    
+     res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 }

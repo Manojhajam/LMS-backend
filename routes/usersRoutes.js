@@ -1,6 +1,7 @@
 import express from "express";
 import { registerUser, loginUser, updateUser, deleteUser, updatePassword, getProfile } from "../controllers/userControllers.js";
 import {checkAuthorization} from '../middleware/checkAuthorization.js'
+
 const router = express.Router();
 
 router.route('/register').post(registerUser);
@@ -13,6 +14,7 @@ router.route('/:userId')
 .delete(checkAuthorization, deleteUser)
 
 
-router.route('/profile').post(checkAuthorization, getProfile);
+router.route('/profile').get(checkAuthorization, getProfile);
+
 
 export default router;
